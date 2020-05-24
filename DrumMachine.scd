@@ -69,7 +69,6 @@ s.quit;
 
 
 
-
 // ================    OSC     ================ //
 
 // debug
@@ -77,6 +76,110 @@ s.quit;
 // OSCFunc.trace(false); // Turn posting off
 // ~sendingAddress.sendMsg('/test');
 
+
+
+// ================    triggers     ================ //
+
+
+
+// kick trigger
+OSCdef.new(
+	\kickTrigger,
+	{
+		|msg|
+		Synth(\kick,
+			[\outBus, ~preFx,
+				\reverbFxBus, ~reverbAux,
+				\delayFxBus, ~delayAux,
+				\vol, ~kickVolume,
+				\pan, ~kickPan,
+				\delaySendAmount, ~kickDelaySend,
+				\reverbSendAmount, ~kickReverbSend],
+			~drums);
+	},
+	'/trigger/kick'
+);
+
+
+// snae trigger
+OSCdef.new(
+	\snareTrigger,
+	{
+		|msg|
+		Synth(\snare,
+			[\outBus, ~preFx,
+				\reverbFxBus, ~reverbAux,
+				\delayFxBus, ~delayAux,
+				\vol, ~snareVolume,
+				\pan, ~snarePan,
+				\delaySendAmount, ~snareDelaySend,
+				\reverbSendAmount, ~snareReverbSend],
+			~drums);
+
+	},
+	'/trigger/snare'
+);
+
+
+// clap trigger
+OSCdef.new(
+	\clapTrigger,
+	{
+		|msg|
+		Synth(\clap,
+			[\outBus, ~preFx,
+				\reverbFxBus, ~reverbAux,
+				\delayFxBus, ~delayAux,
+				\vol, ~clapVolume,
+				\pan, ~clapPan,
+				\delaySendAmount, ~clapDelaySend,
+				\reverbSendAmount, ~clapReverbSend],
+			~drums);
+
+	},
+	'/trigger/clap'
+);
+
+// closedHat trigger
+OSCdef.new(
+	\closedHatTrigger,
+	{
+		|msg|
+	Synth(\closedhat,
+			[\outBus, ~preFx,
+				\reverbFxBus, ~reverbAux,
+				\delayFxBus, ~delayAux,
+				\vol, ~closedHatVolume,
+				\pan, ~closedHatPan,
+				\delaySendAmount, ~closedHatDelaySend,
+				\reverbSendAmount, ~closedHatReverbSend],
+			~drums);
+
+	},
+	'/trigger/closedHat'
+);
+
+// openHat trigger
+OSCdef.new(
+	\openHatTrigger,
+	{
+		|msg|
+		Synth(\openhat,
+			[\outBus, ~preFx,
+				\reverbFxBus, ~reverbAux,
+				\delayFxBus, ~delayAux,
+				\vol, ~openHatVolume,
+				\pan, ~openHatPan,
+				\delaySendAmount, ~openHatDelaySend,
+				\reverbSendAmount, ~openHatReverbSend],
+			~drums);
+
+	},
+	'/trigger/openHat'
+);
+
+
+// ================    setter     ================ //
 
 // bpm
 OSCdef.new(
@@ -513,16 +616,7 @@ SynthDef(\kick, {
 
 }).add;
 
-// TODO: move to OSC
-~kick = Synth(\kick,
-	[\outBus, ~preFx,
-	\reverbFxBus, ~reverbAux,
-	\delayFxBus, ~delayAux,
-		\vol, ~kickVolume,
-		\pan, ~kickPan,
-		\delaySendAmount, ~kickDelaySend,
-		\reverbSendAmount, ~kickReverbSend],
-	~drums);
+
 
 // Snare
 SynthDef(\snare, {
@@ -550,15 +644,6 @@ SynthDef(\snare, {
 
 }).add;
 
-~snare = Synth(\snare,
-	[\outBus, ~preFx,
-	\reverbFxBus, ~reverbAux,
-	\delayFxBus, ~delayAux,
-	    \vol, ~snareVolume,
-	    \pan, ~snarePan,
-        \delaySendAmount, ~snareDelaySend,
-	    \reverbSendAmount, ~snareReverbSend],
-	~drums);
 
 // Clap
 SynthDef(\clap, {
@@ -598,15 +683,6 @@ SynthDef(\clap, {
 
 }).add;
 
-~clap = Synth(\clap,
-	[\outBus, ~preFx,
-	\reverbFxBus, ~reverbAux,
-	\delayFxBus, ~delayAux,
-		\vol, ~clapVolume,
-		\pan, ~clapPan,
-		\delaySendAmount, ~clapDelaySend,
-		\reverbSendAmount, ~clapReverbSend],
-	~drums);
 
 // Closed Hat
 SynthDef(\closedhat, {
@@ -630,15 +706,6 @@ SynthDef(\closedhat, {
 
 }).add;
 
-~closedhat = Synth(\closedhat,
-	[\outBus, ~preFx,
-	\reverbFxBus, ~reverbAux,
-	\delayFxBus, ~delayAux,
-		\vol, ~closedHatVolume,
-		\pan, ~closedHatPan,
-		\delaySendAmount, ~closedHatDelaySend,
-		\reverbSendAmount, ~closedHatReverbSend],
-    ~drums);
 
 // Open Hat
 SynthDef(\openhat, {
@@ -659,14 +726,5 @@ SynthDef(\openhat, {
 
 }).add;
 
-~openhat = Synth(\openhat,
-	[\outBus, ~preFx,
-	\reverbFxBus, ~reverbAux,
-	\delayFxBus, ~delayAux,
-		\vol, ~openHatVolume,
-		\pan, ~openHatPan,
-		\delaySendAmount, ~openHatDelaySend,
-		\reverbSendAmount, ~openHatReverbSend],
-	~drums);
 
 )
