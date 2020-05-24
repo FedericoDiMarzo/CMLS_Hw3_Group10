@@ -4,7 +4,6 @@ s.plotTree;
 s.reboot;
 s.quit;
 
-
 // ================ Parameters  ================ //
 (
 // global
@@ -716,7 +715,7 @@ SynthDef(\openhat, {
 
     hatnoise = {LPF.ar(WhiteNoise.ar(1),6000)};
     hatosc = {HPF.ar(hatnoise,2000)};
-    hatenv = {Line.ar(1, 0, 0.3)};
+    hatenv = {Line.ar(1, 0, 0.3, doneAction: 2)};
 
     snd = (hatosc * hatenv);
 
