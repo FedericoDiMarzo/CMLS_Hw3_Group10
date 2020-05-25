@@ -60,11 +60,11 @@ s.kill;
 ~bitCrusherMix = 0;
 
 // patterns
-~kickPattern = [1, 0, 1, 0, 0, 0, 0, 0];
-~snarePattern = [1, 0, 1, 0, 0, 0, 0, 0];
-~clapPattern = [1, 0, 1, 0, 0, 0, 0, 0];
-~closedHatPattern = [1, 0, 1, 0, 0, 0, 0, 0];
-~openHatPattern = [1, 0, 1, 0, 0, 0, 0, 0];
+~kickPattern = [0, 0, 0, 0, 0, 0, 0, 0];
+~snarePattern = [0, 0, 0, 0, 0, 0, 0, 0];
+~clapPattern = [0, 0, 0, 0, 0, 0, 0, 0];
+~closedHatPattern = [0, 0, 0, 0, 0, 0, 0, 0];
+~openHatPattern = [0, 0, 0, 0, 0, 0, 0, 0];
 
 
 // players
@@ -315,15 +315,429 @@ OSCdef.new(
 	'/sequencer/play'
 );
 
-// grid
+// >>    grid     << //
+
+
+
+
+
+// grid5_1
 OSCdef.new(
 	\setGrid_5_1,
 	{
 		|msg|
-		~kickPattern[1] = msg[1].postln;
+		~kickPattern[0] = msg[1];
 	},
 	'/sequencer/grid/5/1'
 );
+
+// grid5_2
+OSCdef.new(
+	\setGrid_5_2,
+	{
+		|msg|
+		~kickPattern[1] = msg[1];
+	},
+	'/sequencer/grid/5/2'
+);
+
+// grid5_3
+OSCdef.new(
+	\setGrid_5_3,
+	{
+		|msg|
+		~kickPattern[2] = msg[1];
+	},
+	'/sequencer/grid/5/3'
+);
+
+// grid5_4
+OSCdef.new(
+	\setGrid_5_4,
+	{
+		|msg|
+		~kickPattern[3] = msg[1];
+	},
+	'/sequencer/grid/5/4'
+);
+
+// grid5_5
+OSCdef.new(
+	\setGrid_5_5,
+	{
+		|msg|
+		~kickPattern[4] = msg[1];
+	},
+	'/sequencer/grid/5/5'
+);
+
+// grid5_6
+OSCdef.new(
+	\setGrid_5_6,
+	{
+		|msg|
+		~kickPattern[5] = msg[1];
+	},
+	'/sequencer/grid/5/6'
+);
+
+// grid5_7
+OSCdef.new(
+	\setGrid_5_7,
+	{
+		|msg|
+		~kickPattern[6] = msg[1];
+	},
+	'/sequencer/grid/5/7'
+);
+
+// grid5_8
+OSCdef.new(
+	\setGrid_5_8,
+	{
+		|msg|
+		~kickPattern[7] = msg[1];
+	},
+	'/sequencer/grid/5/8'
+);
+
+
+
+//snare//
+
+// grid4_1
+OSCdef.new(
+	\setGrid_4_1,
+	{
+		|msg|
+		~snarePattern[0] = msg[1];
+	},
+	'/sequencer/grid/4/1'
+);
+
+// grid4_2
+OSCdef.new(
+	\setGrid_4_2,
+	{
+		|msg|
+		~snarePattern[1] = msg[1];
+	},
+	'/sequencer/grid/4/2'
+);
+
+// grid4_3
+OSCdef.new(
+	\setGrid_4_3,
+	{
+		|msg|
+		~snarePattern[2] = msg[1];
+	},
+	'/sequencer/grid/4/3'
+);
+
+// grid4_4
+OSCdef.new(
+	\setGrid_4_4,
+	{
+		|msg|
+		~snarePattern[3] = msg[1];
+	},
+	'/sequencer/grid/4/4'
+);
+
+// grid4_5
+OSCdef.new(
+	\setGrid_4_5,
+	{
+		|msg|
+		~snarePattern[4] = msg[1];
+	},
+	'/sequencer/grid/4/5'
+);
+
+// grid4_6
+OSCdef.new(
+	\setGrid_4_6,
+	{
+		|msg|
+		~snarePattern[5] = msg[1];
+	},
+	'/sequencer/grid/4/6'
+);
+
+// grid4_7
+OSCdef.new(
+	\setGrid_4_7,
+	{
+		|msg|
+		~snarePattern[6] = msg[1];
+	},
+	'/sequencer/grid/4/7'
+);
+
+// grid4_8
+OSCdef.new(
+	\setGrid_4_8,
+	{
+		|msg|
+		~snarePattern[7] = msg[1];
+	},
+	'/sequencer/grid/4/8'
+);
+
+
+//clap//
+
+// grid3_1
+OSCdef.new(
+	\setGrid_3_1,
+	{
+		|msg|
+		~clapPattern[0] = msg[1];
+	},
+	'/sequencer/grid/3/1'
+);
+
+// grid3_2
+OSCdef.new(
+	\setGrid_3_2,
+	{
+		|msg|
+		~clapPattern[1] = msg[1];
+	},
+	'/sequencer/grid/3/2'
+);
+
+// grid3_3
+OSCdef.new(
+	\setGrid_3_3,
+	{
+		|msg|
+		~clapPattern[2] = msg[1];
+	},
+	'/sequencer/grid/3/3'
+);
+
+// grid3_4
+OSCdef.new(
+	\setGrid_3_4,
+	{
+		|msg|
+		~clapPattern[3] = msg[1];
+	},
+	'/sequencer/grid/3/4'
+);
+
+// grid3_5
+OSCdef.new(
+	\setGrid_3_5,
+	{
+		|msg|
+		~clapPattern[4] = msg[1];
+	},
+	'/sequencer/grid/3/5'
+);
+
+// grid3_6
+OSCdef.new(
+	\setGrid_3_6,
+	{
+		|msg|
+		~clapPattern[5] = msg[1];
+	},
+	'/sequencer/grid/3/6'
+);
+
+// grid3_7
+OSCdef.new(
+	\setGrid_3_7,
+	{
+		|msg|
+		~clapPattern[6] = msg[1];
+	},
+	'/sequencer/grid/3/7'
+);
+
+// grid3_8
+OSCdef.new(
+	\setGrid_3_8,
+	{
+		|msg|
+		~clapPattern[7] = msg[1];
+	},
+	'/sequencer/grid/3/8'
+);
+
+
+
+// closed hat //
+
+// grid2_1
+OSCdef.new(
+	\setGrid_2_1,
+	{
+		|msg|
+		~closedHatPattern[0] = msg[1];
+	},
+	'/sequencer/grid/2/1'
+);
+
+// grid2_2
+OSCdef.new(
+	\setGrid_2_2,
+	{
+		|msg|
+		~closedHatPattern[1] = msg[1];
+	},
+	'/sequencer/grid/2/2'
+);
+
+// grid2_3
+OSCdef.new(
+	\setGrid_2_3,
+	{
+		|msg|
+		~closedHatPattern[2] = msg[1];
+	},
+	'/sequencer/grid/2/3'
+);
+
+// grid2_4
+OSCdef.new(
+	\setGrid_2_4,
+	{
+		|msg|
+		~closedHatPattern[3] = msg[1];
+	},
+	'/sequencer/grid/2/4'
+);
+
+// grid2_5
+OSCdef.new(
+	\setGrid_2_5,
+	{
+		|msg|
+		~closedHatPattern[4] = msg[1];
+	},
+	'/sequencer/grid/2/5'
+);
+
+// grid2_6
+OSCdef.new(
+	\setGrid_2_6,
+	{
+		|msg|
+		~closedHatPattern[5] = msg[1];
+	},
+	'/sequencer/grid/2/6'
+);
+
+// grid2_7
+OSCdef.new(
+	\setGrid_2_7,
+	{
+		|msg|
+		~closedHatPattern[6] = msg[1];
+	},
+	'/sequencer/grid/2/7'
+);
+
+// grid2_8
+OSCdef.new(
+	\setGrid_2_8,
+	{
+		|msg|
+		~closedHatPattern[7] = msg[1];
+	},
+	'/sequencer/grid/2/8'
+);
+
+
+// open hat //
+
+
+// grid1_1
+OSCdef.new(
+	\setGrid_1_1,
+	{
+		|msg|
+		~openHatPattern[0] = msg[1];
+	},
+	'/sequencer/grid/1/1'
+);
+
+// grid1_2
+OSCdef.new(
+	\setGrid_1_2,
+	{
+		|msg|
+		~openHatPattern[1] = msg[1];
+	},
+	'/sequencer/grid/1/2'
+);
+
+// grid1_3
+OSCdef.new(
+	\setGrid_1_3,
+	{
+		|msg|
+		~openHatPattern[2] = msg[1];
+	},
+	'/sequencer/grid/1/3'
+);
+
+// grid1_4
+OSCdef.new(
+	\setGrid_1_4,
+	{
+		|msg|
+		~openHatPattern[3] = msg[1];
+	},
+	'/sequencer/grid/1/4'
+);
+
+// grid1_5
+OSCdef.new(
+	\setGrid_1_5,
+	{
+		|msg|
+		~openHatPattern[4] = msg[1];
+	},
+	'/sequencer/grid/1/5'
+);
+
+// grid1_6
+OSCdef.new(
+	\setGrid_1_6,
+	{
+		|msg|
+		~openHatPattern[5] = msg[1];
+	},
+	'/sequencer/grid/1/6'
+);
+
+// grid1_7
+OSCdef.new(
+	\setGrid_1_7,
+	{
+		|msg|
+		~openHatPattern[6] = msg[1];
+	},
+	'/sequencer/grid/1/7'
+);
+
+// grid1_8
+OSCdef.new(
+	\setGrid_1_8,
+	{
+		|msg|
+		~openHatPattern[7] = msg[1];
+	},
+	'/sequencer/grid/1/8'
+);
+
+
+
 
 
 // >>    setters     << //
@@ -606,7 +1020,7 @@ OSCdef.new(
 	\setBitCrusherDist,
 	{
 		|msg|
-		~bitCrusherDist= msg[1].postln;
+		~bitCrusherDist= msg[1];
 		~bitCrusher.set(\dist, msg[1]);
 	},
 	'/mix/crush'
@@ -617,7 +1031,7 @@ OSCdef.new(
 	\setBitCrusherMix,
 	{
 		|msg|
-		~bitCrusherMix= msg[1].postln;
+		~bitCrusherMix= msg[1];
 		~bitCrusher.set(\mix, msg[1]);
 	},
 	'/mix/mix'
