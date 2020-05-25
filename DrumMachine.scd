@@ -2,17 +2,15 @@ s.boot;
 s.meter;
 s.plotTree;
 s.reboot;
-s.quit;
-s.kill;
 
 // ================ Parameters  ================ //
+
 (
 
 // global
 ~bpm = 120;
 ~tempo = TempoClock(~bpm/120);
-~sendingPortNumber = 9067;
-~sendingAddress = NetAddr.new("127.0.0.1", ~sendingPortNumber);
+~sendingAddress = NetAddr.new("127.0.0.1", 57120);
 ~masterVolume = 0.5;
 
 // kick
@@ -75,6 +73,347 @@ s.kill;
 ~openHatPlayer = 0;
 
 
+// ================     Routing     ================ //
+
+// groups
+~drums = Group.new;
+~effects = Group.new(~drums, \addAfter);
+~master = Group.new(~effects, \addAfter);
+
+// main route
+~preFx = Bus.audio(s, 2);
+
+
+// fx send
+~reverbAux = Bus.audio(s, 2);
+~delayAux = Bus.audio(s, 2);
+~auxBus = Bus.audio(s, 2);
+
+
+SynthDef(\masterVolume, {
+	arg inBus, outBus,
+	masterVol = 1;
+
+	var signal,fx;
+
+	signal = In.ar(inBus, 2);
+
+	fx = signal * masterVol;
+
+	ReplaceOut.ar(outBus, fx);
+}).add;
+
+~mVolume = Synth(\masterVolume,
+	[\inbus, 0,
+	\outBus, 0,
+	\masterVol, ~masterVolume],
+	~master);
+
+
+
+// ================       FX       ================ //
+
+// Reverb
+SynthDef(\reverb, {
+	arg outBus, inBus,
+		decay = 0.5, damp = 0.5, level = 1;
+	var signal, fx;
+
+	signal = In.ar(inBus, 2);
+
+	fx = FreeVerb2.ar(
+		in: signal[0],
+		in2: signal[1],
+		mix: 1,
+		room: decay,
+		damp: damp) * level;
+
+	Out.ar(outBus, fx);
+}).add;
+
+~reverb = Synth(\reverb,
+	[\inBus, ~reverbAux,
+	\outBus, 0,
+		\damp, ~reverbDamp,
+		\decay, ~reverbDecay,
+		\level, ~reverbLevel],
+	~effects);
+
+
+
+// Delay
+SynthDef(\delay, {
+	arg inBus, outBus,
+		time = 0.5, feed = 1, level = 1;
+	var signal, fx;
+
+	signal = In.ar(inBus, 2);
+
+	fx = CombC.ar(
+		in: signal,
+		maxdelaytime: 5,
+		delaytime: time,
+		decaytime: feed) * level;
+
+	Out.ar(outBus, {fx}.dup);
+}).add;
+
+~delay = Synth(\delay,
+	[\inBus, ~delayAux,
+	\outBus, 0,
+		\time, ~delayTime,
+		\feed, ~delayFeedback,
+		\level, ~delayLevel],
+	~effects);
+
+
+// bitCrusher
+SynthDef(\bitCrusher, {
+	arg inBus, outBus,
+	    dist = 5, mix = 0.5;
+	var signal, fx;
+
+	signal = In.ar(inBus, 2);
+
+	fx = signal.round(2**(-1*dist));
+
+	Out.ar(outBus, signal * (1-mix));
+	Out.ar(outBus, fx * mix);
+}).add;
+
+~bitCrusher = Synth(\bitCrusher,
+	[\inBus, ~preFx,
+	\outBus, 0,
+		\dist, ~bitCrusherDist,
+		\mix, ~bitCrusherMix],
+	~effects);
+
+
+// ================     Sounds     ================ //
+
+// Kick
+SynthDef(\kick, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+
+    var body, bodyFreq, bodyAmp;
+    var pop, popFreq, popAmp;
+    var click, clickAmp;
+    var snd;
+
+    // body starts midrange, quickly drops down to low freqs, and trails off
+    bodyFreq = EnvGen.ar(Env([261, 120, 51], [0.035, 0.08], curve: \exp));
+    bodyAmp = EnvGen.ar(Env.linen(0.005, 0.1, 0.3), doneAction: 2);
+    body = SinOsc.ar(bodyFreq) * bodyAmp;
+    // pop sweeps over the midrange
+    popFreq = XLine.kr(750, 261, 0.02);
+    popAmp = EnvGen.ar(Env.linen(0.001, 0.02, 0.001)) * 0.15;
+    pop = SinOsc.ar(popFreq) * popAmp;
+    // click is spectrally rich, covering the high-freq range
+    // you can use Formant, FM, noise, whatever
+    clickAmp = EnvGen.ar(Env.perc(0.001, 0.01)) * 0.15;
+    click = LPF.ar(Formant.ar(910, 4760, 2110), 3140) * clickAmp;
+
+    snd = body + pop + click;
+	snd = (snd.tanh);
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol));
+	Out.ar(reverbFxBus, snd * reverbSendAmount);
+	Out.ar(delayFxBus, snd * delaySendAmount);
+
+}).add;
+
+
+
+// Snare
+SynthDef(\snare, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+
+    var pop, popAmp, popFreq;
+    var noise, noiseAmp;
+    var snd;
+
+	// pop makes a click coming from very high frequencies
+    // slowing down a little and stopping in mid-to-low
+    popFreq = EnvGen.ar(Env([3261, 410, 160], [0.005, 0.01], curve: \exp));
+    popAmp = EnvGen.ar(Env.perc(0.001, 0.11)) * 0.7;
+    pop = SinOsc.ar(popFreq) * popAmp;
+    // bandpass-filtered white noise
+    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.15), doneAction: 2);
+    noise = BPF.ar(WhiteNoise.ar, 810, 1.6) * noiseAmp;
+
+    snd = (pop + noise) * 1.3;
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol));
+	Out.ar(reverbFxBus, snd * reverbSendAmount);
+	Out.ar(delayFxBus, snd * delaySendAmount);
+
+}).add;
+
+
+// Clap
+SynthDef(\clap, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+
+	var env1, env2, snd, noise1, noise2;
+
+    // noise 1 - 4 short repeats
+    env1 = EnvGen.ar(
+        Env.new(
+            [0, 1, 0, 0.9, 0, 0.7, 0, 0.5, 0],
+            [0.001, 0.009, 0, 0.008, 0, 0.01, 0, 0.03],
+            [0, -3, 0, -3, 0, -3, 0, -4]
+        )
+    );
+
+    noise1 = WhiteNoise.ar(env1);
+    noise1 = HPF.ar(noise1, 600);
+    noise1 = LPF.ar(noise1, XLine.kr(7200, 4000, 0.03));
+    noise1 = BPF.ar(noise1, 1620, 3);
+
+    // noise 2 - 1 longer single
+    env2 = EnvGen.ar(Env.new([0, 1, 0], [0.02, 0.18], [0, -4]), doneAction:2);
+
+    noise2 = WhiteNoise.ar(env2);
+    noise2 = HPF.ar(noise2, 1000);
+    noise2 = LPF.ar(noise2, 7600);
+    noise2 = BPF.ar(noise2, 1230, 0.7, 0.7);
+    snd = noise1 + noise2;
+    snd = snd * 2;
+    snd = snd.softclip;
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol));
+	Out.ar(reverbFxBus, snd * reverbSendAmount);
+	Out.ar(delayFxBus, snd * delaySendAmount);
+
+}).add;
+
+
+// Closed Hat
+SynthDef(\closedhat, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+
+
+    var click, clickAmp;
+    var noise, noiseAmp;
+    var snd;
+
+    // noise -> resonance -> expodec envelope
+    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.3, curve: -8), doneAction: 2);
+    noise = Mix(BPF.ar(ClipNoise.ar, [4010, 4151], [0.15, 0.56], [1.0, 0.6])) * 0.7 * noiseAmp;
+
+    snd = noise;
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol));
+	Out.ar(reverbFxBus, snd * reverbSendAmount);
+	Out.ar(delayFxBus, snd * delaySendAmount);
+
+}).add;
+
+
+// Open Hat
+SynthDef(\openhat, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+
+    var hatosc, hatenv, hatnoise, snd ;
+
+    hatnoise = {LPF.ar(WhiteNoise.ar(1),6000)};
+    hatosc = {HPF.ar(hatnoise,2000)};
+    hatenv = {Line.ar(1, 0, 0.3, doneAction: 2)};
+
+    snd = (hatosc * hatenv);
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol));
+	Out.ar(reverbFxBus, snd * reverbSendAmount);
+	Out.ar(delayFxBus, snd * delaySendAmount);
+
+}).add;
+
+
+
+// ================    Triggering Sounds    ================ //
+
+// kick trigger function
+~triggerKick = {
+	Synth(\kick,
+		[\outBus, ~preFx,
+			\reverbFxBus, ~reverbAux,
+			\delayFxBus, ~delayAux,
+			\vol, ~kickVolume,
+			\pan, ~kickPan,
+			\delaySendAmount, ~kickDelaySend,
+			\reverbSendAmount, ~kickReverbSend],
+		~drums);
+};
+
+
+
+// snare trigger
+~triggerSnare = {
+	Synth(\snare,
+		[\outBus, ~preFx,
+			\reverbFxBus, ~reverbAux,
+			\delayFxBus, ~delayAux,
+			\vol, ~snareVolume,
+			\pan, ~snarePan,
+			\delaySendAmount, ~snareDelaySend,
+			\reverbSendAmount, ~snareReverbSend],
+		~drums);
+};
+
+
+
+// clap trigger
+~triggerClap = {
+	Synth(\clap,
+		[\outBus, ~preFx,
+			\reverbFxBus, ~reverbAux,
+			\delayFxBus, ~delayAux,
+			\vol, ~clapVolume,
+			\pan, ~clapPan,
+			\delaySendAmount, ~clapDelaySend,
+			\reverbSendAmount, ~clapReverbSend],
+		~drums);
+};
+
+
+// closedHat trigger
+~triggerClosedHat = {
+	Synth(\closedhat,
+		[\outBus, ~preFx,
+			\reverbFxBus, ~reverbAux,
+			\delayFxBus, ~delayAux,
+			\vol, ~closedHatVolume,
+			\pan, ~closedHatPan,
+			\delaySendAmount, ~closedHatDelaySend,
+			\reverbSendAmount, ~closedHatReverbSend],
+		~drums);
+};
+
+
+// openHat trigger
+~triggerOpenHat = {
+	Synth(\openhat,
+		[\outBus, ~preFx,
+			\reverbFxBus, ~reverbAux,
+			\delayFxBus, ~delayAux,
+			\vol, ~openHatVolume,
+			\pan, ~openHatPan,
+			\delaySendAmount, ~openHatDelaySend,
+			\reverbSendAmount, ~openHatReverbSend],
+		~drums);
+};
+
+// ================    Sequencing    ================ //
+
+
+
+
+
 // ================    OSC     ================ //
 
 // debug
@@ -86,28 +425,13 @@ s.kill;
 
 // >>    triggers     << //
 
-
-
 // kick trigger
 OSCdef.new(
 	\kickTrigger,
 	{
 		|msg|
-		if(
-			msg[1]==1,
-			{
-				Synth(\kick,
-					[\outBus, ~preFx,
-						\reverbFxBus, ~reverbAux,
-						\delayFxBus, ~delayAux,
-						\vol, ~kickVolume,
-						\pan, ~kickPan,
-						\delaySendAmount, ~kickDelaySend,
-						\reverbSendAmount, ~kickReverbSend],
-					~drums);
-			}
-		);
-
+		if(msg[1]==1,
+			{~triggerKick.value});
 	},
 	'/trigger/multiTrigger/1/1'
 );
@@ -118,20 +442,8 @@ OSCdef.new(
 	\snareTrigger,
 	{
 		|msg|
-		if(
-			msg[1]==1,
-			{
-				Synth(\snare,
-					[\outBus, ~preFx,
-						\reverbFxBus, ~reverbAux,
-						\delayFxBus, ~delayAux,
-						\vol, ~snareVolume,
-						\pan, ~snarePan,
-						\delaySendAmount, ~snareDelaySend,
-						\reverbSendAmount, ~snareReverbSend],
-					~drums);
-			}
-		);
+		if(msg[1]==1,
+			{~triggerSnare.value});
 
 	},
 	'/trigger/multiTrigger/1/2'
@@ -143,20 +455,8 @@ OSCdef.new(
 	\clapTrigger,
 	{
 		|msg|
-		if(
-			msg[1]==1,
-			{
-				Synth(\clap,
-					[\outBus, ~preFx,
-						\reverbFxBus, ~reverbAux,
-						\delayFxBus, ~delayAux,
-						\vol, ~clapVolume,
-						\pan, ~clapPan,
-						\delaySendAmount, ~clapDelaySend,
-						\reverbSendAmount, ~clapReverbSend],
-					~drums);
-			}
-		);
+		if(msg[1]==1,
+			{~triggerClap.value});
 
 	},
 	'/trigger/multiTrigger/1/3'
@@ -167,20 +467,8 @@ OSCdef.new(
 	\closedHatTrigger,
 	{
 		|msg|
-		if(
-			msg[1]==1,
-			{
-				Synth(\closedhat,
-					[\outBus, ~preFx,
-						\reverbFxBus, ~reverbAux,
-						\delayFxBus, ~delayAux,
-						\vol, ~closedHatVolume,
-						\pan, ~closedHatPan,
-						\delaySendAmount, ~closedHatDelaySend,
-						\reverbSendAmount, ~closedHatReverbSend],
-					~drums);
-			}
-		);
+		if(msg[1]==1,
+			{~triggerClosedHat.value});
 
 	},
 	'/trigger/multiTrigger/1/4'
@@ -191,20 +479,8 @@ OSCdef.new(
 	\openHatTrigger,
 	{
 		|msg|
-		if(
-			msg[1]==1,
-			{
-				Synth(\openhat,
-					[\outBus, ~preFx,
-						\reverbFxBus, ~reverbAux,
-						\delayFxBus, ~delayAux,
-						\vol, ~openHatVolume,
-						\pan, ~openHatPan,
-						\delaySendAmount, ~openHatDelaySend,
-						\reverbSendAmount, ~openHatReverbSend],
-					~drums);
-			}
-		);
+		if(msg[1]==1,
+			{~triggerOpenHat.value});
 
 	},
 	'/trigger/multiTrigger/1/5'
@@ -212,6 +488,22 @@ OSCdef.new(
 
 
 // >>    sequencer     << //
+
+~startTask = {
+	arg tempo, triggerFunction, pattern;
+	Task({
+		var i = 0;
+		loop {
+			inf.do({
+				if(pattern.wrapAt(i) == 1, {
+					triggerFunction.value;
+				});
+				i = i + 1;
+				0.25.wait;
+			});
+		}
+	}).play(tempo, true);
+};
 
 // sequencer play-stop
 OSCdef.new(
@@ -222,91 +514,19 @@ OSCdef.new(
 		if(
 			msg[1] == 1,
 			{ // play
-				var kickPatternDuration = ~convert2duration.value(~kickPattern);
-				var snarePatternDuration = ~convert2duration.value(~snarePattern);
-				var clapPatternDuration = ~convert2duration.value(~clapPattern);
-				var closedHatPatternDuration = ~convert2duration.value(~closedHatPattern);
-				var openHatPatternDuration = ~convert2duration.value(~openHatPattern);
-
-				// initializing binds
-				var kickBind = Pbind(
-					\instrument, \kick,
-					\dur, Pseq(kickPatternDuration, inf),
-					\outBus, ~preFx,
-					\reverbFxBus, ~reverbAux,
-					\delayFxBus, ~delayAux,
-					\vol, ~kickVolume,
-					\pan, ~kickPan,
-					\delaySendAmount, ~kickDelaySend,
-					\reverbSendAmount, ~kickReverbSend
-				);
-
-
-				var snareBind = Pbind(
-                    \instrument, \snare,
-                    \dur, Pseq(snarePatternDuration, inf),
-                    \outBus, ~preFx,
-                    \reverbFxBus, ~reverbAux,
-                    \delayFxBus, ~delayAux,
-                    \vol, ~snareVolume,
-                    \pan, ~snarePan,
-                    \delaySendAmount, ~snareDelaySend,
-                    \reverbSendAmount, ~snareReverbSend
-                );
-
-
-                var clapBind = Pbind(
-                    \instrument, \clap,
-                    \dur, Pseq(clapPatternDuration, inf),
-                    \outBus, ~preFx,
-                    \reverbFxBus, ~reverbAux,
-                    \delayFxBus, ~delayAux,
-                    \vol, ~clapVolume,
-                    \pan, ~clapPan,
-                    \delaySendAmount, ~clapDelaySend,
-                    \reverbSendAmount, ~clapReverbSend
-                );
-
-                var closedHatBind = Pbind(
-                    \instrument, \closedhat,
-                    \dur, Pseq(closedHatPatternDuration, inf),
-                    \outBus, ~preFx,
-                    \reverbFxBus, ~reverbAux,
-                    \delayFxBus, ~delayAux,
-                    \vol, ~closedHatVolume,
-                    \pan, ~closedHatPan,
-                    \delaySendAmount, ~closedHatDelaySend,
-                    \reverbSendAmount, ~closedHatReverbSend
-                );
-
-
-                var openHatBind = Pbind(
-                    \instrument, \openhat,
-                    \dur, Pseq(openHatPatternDuration, inf),
-                    \outBus, ~preFx,
-                    \reverbFxBus, ~reverbAux,
-                    \delayFxBus, ~delayAux,
-                    \vol, ~openHatVolume,
-                    \pan, ~openHatPan,
-                    \delaySendAmount, ~openHatDelaySend,
-                    \reverbSendAmount, ~openHatReverbSend
-                );
-
-				~kickPlayer = kickBind.play(~tempo);
-				~snarePlayer = snareBind.play(~tempo);
-				~clapPlayer = clapBind.play(~tempo);
-				~closedHatPlayer = closedHatBind.play(~tempo);
-                ~openHatPlayer = openHatBind.play(~tempo);
-
-
+				~kickTask = ~startTask.value(~tempo, ~triggerKick, ~kickPattern);
+				~snareTask = ~startTask.value(~tempo, ~triggerSnare, ~snarePattern);
+				~clapTask = ~startTask.value(~tempo, ~triggerClap, ~clapPattern);
+				~closedHatTask = ~startTask.value(~tempo, ~triggerClosedHat, ~closedHatPattern);
+				~openHatTask = ~startTask.value(~tempo, ~triggerOpenHat, ~openHatPattern);
 			},
 
 			{ // stop
-				~kickPlayer.stop;
-				~snarePlayer.stop;
-				~clapPlayer.stop;
-				~closedHatPlayer.stop;
-				~openHatPlayer.stop;
+				~kickTask.stop;
+				~snareTask.stop;
+				~clapTask.stop;
+				~closedHatTask.stop;
+				~openHatTask.stop;
 			}
 		)
 
@@ -316,10 +536,6 @@ OSCdef.new(
 );
 
 // >>    grid     << //
-
-
-
-
 
 // grid5_1
 OSCdef.new(
@@ -760,6 +976,9 @@ OSCdef.new(
 		|msg|
 		~bpm = msg[1];
 		~tempo = TempoClock(~bpm/120);
+
+		// stopping the sequencer
+		~sendingAddress.sendMsg("/sequencer/play", 0)
 	},
 	'/sequencer/bpm'
 );
@@ -1036,288 +1255,6 @@ OSCdef.new(
 	},
 	'/mix/mix'
 );
-
-
-// ================    Utilities    ================ //
-
-// converts 0/1 array into a duration representation
-~convert2duration = {
-	|array|
-	var arrayCopy = Array.newFrom(array);
-	arrayCopy.do({
-		|value, index|
-		if(
-			value == 0,
-			{arrayCopy[index] = Rest(1/4)},
-			{arrayCopy[index] = 1/4}
-		)
-	})
-};
-
-// debug
-// ~kickPattern;
-// ~convert2duration.value(~kickPattern);
-
-
-// ================     Routing     ================ //
-
-// groups
-~drums = Group.new;
-~effects = Group.new(~drums, \addAfter);
-~master = Group.new(~effects, \addAfter);
-
-// main route
-~preFx = Bus.audio(s, 2);
-
-
-// fx send
-~reverbAux = Bus.audio(s, 2);
-~delayAux = Bus.audio(s, 2);
-~auxBus = Bus.audio(s, 2);
-
-
-SynthDef(\masterVolume, {
-	arg inBus, outBus,
-	masterVol = 1;
-
-	var signal,fx;
-
-	signal = In.ar(inBus, 2);
-
-	fx = signal * masterVol;
-
-	ReplaceOut.ar(outBus, fx);
-}).add;
-
-~mVolume = Synth(\masterVolume,
-	[\inbus, 0,
-	\outBus, 0,
-	\masterVol, ~masterVolume],
-	~master);
-
-
-
-// ================       FX       ================ //
-
-// Reverb
-SynthDef(\reverb, {
-	arg outBus, inBus,
-		decay = 0.5, damp = 0.5, level = 1;
-	var signal, fx;
-
-	signal = In.ar(inBus, 2);
-
-	fx = FreeVerb2.ar(
-		in: signal[0],
-		in2: signal[1],
-		mix: 1,
-		room: decay,
-		damp: damp) * level;
-
-	Out.ar(outBus, fx);
-}).add;
-
-~reverb = Synth(\reverb,
-	[\inBus, ~reverbAux,
-	\outBus, 0,
-		\damp, ~reverbDamp,
-		\decay, ~reverbDecay,
-		\level, ~reverbLevel],
-	~effects);
-
-
-
-// Delay
-SynthDef(\delay, {
-	arg inBus, outBus,
-		time = 0.5, feed = 1, level = 1;
-	var signal, fx;
-
-	signal = In.ar(inBus, 2);
-
-	fx = CombC.ar(
-		in: signal,
-		maxdelaytime: 5,
-		delaytime: time,
-		decaytime: feed) * level;
-
-	Out.ar(outBus, {fx}.dup);
-}).add;
-
-~delay = Synth(\delay,
-	[\inBus, ~delayAux,
-	\outBus, 0,
-		\time, ~delayTime,
-		\feed, ~delayFeedback,
-		\level, ~delayLevel],
-	~effects);
-
-
-// bitCrusher
-SynthDef(\bitCrusher, {
-	arg inBus, outBus,
-	    dist = 5, mix = 0.5;
-	var signal, fx;
-
-	signal = In.ar(inBus, 2);
-
-	fx = signal.round(2**(-1*dist));
-
-	Out.ar(outBus, signal * (1-mix));
-	Out.ar(outBus, fx * mix);
-}).add;
-
-~bitCrusher = Synth(\bitCrusher,
-	[\inBus, ~preFx,
-	\outBus, 0,
-		\dist, ~bitCrusherDist,
-		\mix, ~bitCrusherMix],
-	~effects);
-
-
-// ================     Sounds     ================ //
-
-// Kick
-SynthDef(\kick, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
-
-    var body, bodyFreq, bodyAmp;
-    var pop, popFreq, popAmp;
-    var click, clickAmp;
-    var snd;
-
-    // body starts midrange, quickly drops down to low freqs, and trails off
-    bodyFreq = EnvGen.ar(Env([261, 120, 51], [0.035, 0.08], curve: \exp));
-    bodyAmp = EnvGen.ar(Env.linen(0.005, 0.1, 0.3), doneAction: 2);
-    body = SinOsc.ar(bodyFreq) * bodyAmp;
-    // pop sweeps over the midrange
-    popFreq = XLine.kr(750, 261, 0.02);
-    popAmp = EnvGen.ar(Env.linen(0.001, 0.02, 0.001)) * 0.15;
-    pop = SinOsc.ar(popFreq) * popAmp;
-    // click is spectrally rich, covering the high-freq range
-    // you can use Formant, FM, noise, whatever
-    clickAmp = EnvGen.ar(Env.perc(0.001, 0.01)) * 0.15;
-    click = LPF.ar(Formant.ar(910, 4760, 2110), 3140) * clickAmp;
-
-    snd = body + pop + click;
-	snd = (snd.tanh);
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
-
-}).add;
-
-
-
-// Snare
-SynthDef(\snare, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
-
-    var pop, popAmp, popFreq;
-    var noise, noiseAmp;
-    var snd;
-
-	// pop makes a click coming from very high frequencies
-    // slowing down a little and stopping in mid-to-low
-    popFreq = EnvGen.ar(Env([3261, 410, 160], [0.005, 0.01], curve: \exp));
-    popAmp = EnvGen.ar(Env.perc(0.001, 0.11)) * 0.7;
-    pop = SinOsc.ar(popFreq) * popAmp;
-    // bandpass-filtered white noise
-    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.15), doneAction: 2);
-    noise = BPF.ar(WhiteNoise.ar, 810, 1.6) * noiseAmp;
-
-    snd = (pop + noise) * 1.3;
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
-
-}).add;
-
-
-// Clap
-SynthDef(\clap, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
-
-	var env1, env2, snd, noise1, noise2;
-
-    // noise 1 - 4 short repeats
-    env1 = EnvGen.ar(
-        Env.new(
-            [0, 1, 0, 0.9, 0, 0.7, 0, 0.5, 0],
-            [0.001, 0.009, 0, 0.008, 0, 0.01, 0, 0.03],
-            [0, -3, 0, -3, 0, -3, 0, -4]
-        )
-    );
-
-    noise1 = WhiteNoise.ar(env1);
-    noise1 = HPF.ar(noise1, 600);
-    noise1 = LPF.ar(noise1, XLine.kr(7200, 4000, 0.03));
-    noise1 = BPF.ar(noise1, 1620, 3);
-
-    // noise 2 - 1 longer single
-    env2 = EnvGen.ar(Env.new([0, 1, 0], [0.02, 0.18], [0, -4]), doneAction:2);
-
-    noise2 = WhiteNoise.ar(env2);
-    noise2 = HPF.ar(noise2, 1000);
-    noise2 = LPF.ar(noise2, 7600);
-    noise2 = BPF.ar(noise2, 1230, 0.7, 0.7);
-    snd = noise1 + noise2;
-    snd = snd * 2;
-    snd = snd.softclip;
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
-
-}).add;
-
-
-// Closed Hat
-SynthDef(\closedhat, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
-
-
-    var click, clickAmp;
-    var noise, noiseAmp;
-    var snd;
-
-    // noise -> resonance -> expodec envelope
-    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.3, curve: -8), doneAction: 2);
-    noise = Mix(BPF.ar(ClipNoise.ar, [4010, 4151], [0.15, 0.56], [1.0, 0.6])) * 0.7 * noiseAmp;
-
-    snd = noise;
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
-
-}).add;
-
-
-// Open Hat
-SynthDef(\openhat, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
-
-    var hatosc, hatenv, hatnoise, snd ;
-
-    hatnoise = {LPF.ar(WhiteNoise.ar(1),6000)};
-    hatosc = {HPF.ar(hatnoise,2000)};
-    hatenv = {Line.ar(1, 0, 0.3, doneAction: 2)};
-
-    snd = (hatosc * hatenv);
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
-
-}).add;
 
 
 )
