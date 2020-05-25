@@ -44,18 +44,15 @@ s.reboot;
 ~openHatReverbSend = 0;
 
 // delay
-~delayTime = 0.2;
+~delayTime = 0.3;
 ~delayFeedback = 2;
-~delayLevel = 1;
 
 // reverb
-~reverbDamp = 0.3;
-~reverbDecay = 0.8;
-~reverbLevel = 1;
+~reverbDamp = 0.5;
+~reverbDecay = 0.7;
 
 // bitCrusher
-~bitCrusherDist = 8;
-~bitCrusherMix = 0;
+~bitCrusherDist = 9;
 
 // patterns
 ~kickPattern = [0, 0, 0, 0, 0, 0, 0, 0];
@@ -116,7 +113,7 @@ SynthDef(\masterVolume, {
 // Reverb
 SynthDef(\reverb, {
 	arg outBus, inBus,
-		decay = 0.5, damp = 0.5, level = 1;
+		decay = 0.5, damp = 0.5;
 	var signal, fx;
 
 	signal = In.ar(inBus, 2);
@@ -126,7 +123,7 @@ SynthDef(\reverb, {
 		in2: signal[1],
 		mix: 1,
 		room: decay,
-		damp: damp) * level;
+		damp: damp);
 
 	Out.ar(outBus, fx);
 }).add;
@@ -135,8 +132,7 @@ SynthDef(\reverb, {
 	[\inBus, ~reverbAux,
 	\outBus, 0,
 		\damp, ~reverbDamp,
-		\decay, ~reverbDecay,
-		\level, ~reverbLevel],
+		\decay, ~reverbDecay],
 	~effects);
 
 
@@ -144,16 +140,16 @@ SynthDef(\reverb, {
 // Delay
 SynthDef(\delay, {
 	arg inBus, outBus,
-		time = 0.5, feed = 1, level = 1;
+		time = 0.5, feed = 1;
 	var signal, fx;
 
 	signal = In.ar(inBus, 2);
 
 	fx = CombC.ar(
 		in: signal,
-		maxdelaytime: 5,
+		maxdelaytime: 10,
 		delaytime: time,
-		decaytime: feed) * level;
+		decaytime: feed*time);
 
 	Out.ar(outBus, {fx}.dup);
 }).add;
@@ -162,20 +158,19 @@ SynthDef(\delay, {
 	[\inBus, ~delayAux,
 	\outBus, 0,
 		\time, ~delayTime,
-		\feed, ~delayFeedback,
-		\level, ~delayLevel],
+		\feed, ~delayFeedback],
 	~effects);
 
 
 // bitCrusher
 SynthDef(\bitCrusher, {
 	arg inBus, outBus,
-	    dist = 5, mix = 0.5;
-	var signal, fx;
+	    dist = -5;
+	var signal, fx, mix = 0.5;
 
 	signal = In.ar(inBus, 2);
 
-	fx = signal.round(2**(-1*dist));
+	fx = signal.round(2**(dist));
 
 	Out.ar(outBus, signal * (1-mix));
 	Out.ar(outBus, fx * mix);
@@ -184,8 +179,7 @@ SynthDef(\bitCrusher, {
 ~bitCrusher = Synth(\bitCrusher,
 	[\inBus, ~preFx,
 	\outBus, 0,
-		\dist, ~bitCrusherDist,
-		\mix, ~bitCrusherMix],
+		\dist, ~bitCrusherDist],
 	~effects);
 
 
@@ -1200,6 +1194,7 @@ OSCdef.new(
 	{
 		|msg|
 		~reverbDamp = msg[1];
+		~reverb.set(\damp, msg[1]);
 	},
 	'/fx/damping'
 );
@@ -1210,6 +1205,7 @@ OSCdef.new(
 	{
 		|msg|
 		~reverbDecay = msg[1];
+		~reverb.set(\decay, msg[1]);
 	},
 	'/fx/decay'
 );
@@ -1220,6 +1216,8 @@ OSCdef.new(
 	{
 		|msg|
 		~delayTime= msg[1];
+		~delay.set(\time, msg[1]);
+
 	},
 	'/fx/time'
 );
@@ -1230,6 +1228,7 @@ OSCdef.new(
 	{
 		|msg|
 		~delayFeedback= msg[1];
+		~delay.set(\feed, msg[1]);
 	},
 	'/fx/feedback'
 );
@@ -1245,16 +1244,6 @@ OSCdef.new(
 	'/mix/crush'
 );
 
-// bitcrusher mix
-OSCdef.new(
-	\setBitCrusherMix,
-	{
-		|msg|
-		~bitCrusherMix= msg[1];
-		~bitCrusher.set(\mix, msg[1]);
-	},
-	'/mix/mix'
-);
 
 
 )
