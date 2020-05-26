@@ -126,7 +126,9 @@ SynthDef(\reverb, {
 		in2: signal[1],
 		mix: 1,
 		room: decay,
-		damp: damp);
+		damp: damp,
+		mul: 0.7
+	);
 
 	Out.ar(outBus, fx);
 }).add;
@@ -152,7 +154,9 @@ SynthDef(\delay, {
 		in: signal,
 		maxdelaytime: 10,
 		delaytime: time,
-		decaytime: feed*time);
+		decaytime: feed*time,
+		mul: 1
+	);
 
 	Out.ar(outBus, {fx}.dup);
 }).add;
@@ -1240,9 +1244,8 @@ OSCdef.new(
 	\setDelayTime,
 	{
 		|msg|
-		~delayTime= msg[1];
+		~delayTime = msg[1];
 		~delay.set(\time, msg[1]);
-
 	},
 	'/fx/time'
 );
@@ -1252,7 +1255,7 @@ OSCdef.new(
 	\setDelayFeedback,
 	{
 		|msg|
-		~delayFeedback= msg[1];
+		~delayFeedback = msg[1];
 		~delay.set(\feed, msg[1]);
 	},
 	'/fx/feedback'
@@ -1263,7 +1266,7 @@ OSCdef.new(
 	\setBitCrusherDist,
 	{
 		|msg|
-		~bitCrusherDist= msg[1];
+		~bitCrusherDist = msg[1];
 		~bitCrusher.set(\dist, msg[1]);
 	},
 	'/mix/crush'
