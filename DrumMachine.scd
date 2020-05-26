@@ -54,6 +54,9 @@ s.reboot;
 // bitCrusher
 ~bitCrusherDist = 9;
 
+// filter
+~filterCutoff = 13000;
+
 // patterns
 ~kickPattern = [0, 0, 0, 0, 0, 0, 0, 0];
 ~snarePattern = [0, 0, 0, 0, 0, 0, 0, 0];
@@ -181,6 +184,28 @@ SynthDef(\bitCrusher, {
 	\outBus, 0,
 		\dist, ~bitCrusherDist],
 	~effects);
+
+
+// filter
+SynthDef(\filter, {
+		arg inBus, outBus,
+	    cutoff = 5000;
+	var signal, fx;
+
+	signal = In.ar(inBus, 2);
+
+	fx = BLowPass4.ar(signal, cutoff, 0.1);
+
+
+	ReplaceOut.ar(outBus, fx);
+}).add;
+
+~filter = Synth(\filter,
+	[\inBus, 0,
+	\outBus, 0,
+		\cutoff, ~filterCutoff],
+	~master);
+
 
 
 // ================     Sounds     ================ //
@@ -1242,6 +1267,17 @@ OSCdef.new(
 		~bitCrusher.set(\dist, msg[1]);
 	},
 	'/mix/crush'
+);
+
+// filter cutoff
+OSCdef.new(
+	\seFilterCutoff,
+	{
+		|msg|
+		~filterCutoff = msg[1];
+		~filter.set(\cutoff, msg[1]);
+	},
+	'/mix/cutoff'
 );
 
 
