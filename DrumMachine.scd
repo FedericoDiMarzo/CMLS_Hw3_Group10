@@ -3,59 +3,101 @@ s.meter;
 s.plotTree;
 s.reboot;
 
+o = Server.default.options;
+o.device = "ASIO : UMC ASIO Driver";
+Server.default.reboot;
 // ================ Parameters  ================ //
 
 (
 
 // global
+
+~receiverIP = "192.168.1.155"; //change this with the actual IP of your mobile phone
+
+~localAddress = NetAddr.new("127.0.0.1", 57120);
+~receivingAddr = NetAddr.new(~receiverIP, 7771);
+
 ~bpm = 120;
+
+
 ~tempo = TempoClock(~bpm/120);
-~sendingAddress = NetAddr.new("127.0.0.1", 57120);
-~masterVolume = 0.5;
+
+
+~masterVolume = 0.75;
+
+
 
 // kick
 ~kickVolume = 1;
 ~kickPan = 0;
 ~kickDelaySend = 0;
 ~kickReverbSend = 0;
+~kickPitch = 1;
+~kickMute = 0;
+
+
 
 // snare
 ~snareVolume = 1;
 ~snarePan = 0;
 ~snareDelaySend = 0;
 ~snareReverbSend = 0;
+~snarePitch = 1;
+~snareMute = 0;
+
+
 
 // clap
 ~clapVolume = 1;
 ~clapPan = 0;
 ~clapDelaySend = 0;
 ~clapReverbSend = 0;
+~clapPitch = 1;
+~clapMute = 0;
+
+
 
 // closed hat
 ~closedHatVolume = 1;
 ~closedHatPan = 0;
 ~closedHatDelaySend = 0;
 ~closedHatReverbSend = 0;
+~closedHatPitch = 1;
+~closedHatMute = 0;
+
+
 
 // open hat
 ~openHatVolume = 1;
 ~openHatPan = 0;
 ~openHatDelaySend = 0;
 ~openHatReverbSend = 0;
+~openHatPitch = 1;
+~openHatMute = 0;
+
+
+
 
 // delay
 ~delayTime = 0.3;
 ~delayFeedback = 2;
 
+
+
 // reverb
 ~reverbDamp = 0.5;
 ~reverbDecay = 0.7;
 
+
+
+
 // bitCrusher
-~bitCrusherDist = 9;
+~bitCrusherDist = -10;
+
 
 // filter
-~filterCutoff = 13000;
+~filterCutoff = 16000;
+
 
 // patterns
 ~kickPattern = [0, 0, 0, 0, 0, 0, 0, 0];
@@ -65,12 +107,18 @@ s.reboot;
 ~openHatPattern = [0, 0, 0, 0, 0, 0, 0, 0];
 
 
+
+
+
 // players
 ~kickPlayer = 0;
 ~snarePlayer = 0;
 ~clapPlayer = 0;
 ~closedHatPlayer = 0;
 ~openHatPlayer = 0;
+
+
+
 
 
 // ================     Routing     ================ //
@@ -217,7 +265,7 @@ SynthDef(\filter, {
 // Kick
 SynthDef(\kick, {
 	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
 
     var body, bodyFreq, bodyAmp;
     var pop, popFreq, popAmp;
@@ -227,22 +275,22 @@ SynthDef(\kick, {
     // body starts midrange, quickly drops down to low freqs, and trails off
     bodyFreq = EnvGen.ar(Env([261, 120, 51], [0.035, 0.08], curve: \exp));
     bodyAmp = EnvGen.ar(Env.linen(0.005, 0.1, 0.3), doneAction: 2);
-    body = SinOsc.ar(bodyFreq) * bodyAmp;
+    body = SinOsc.ar(bodyFreq * pitch ) * bodyAmp;
     // pop sweeps over the midrange
     popFreq = XLine.kr(750, 261, 0.02);
     popAmp = EnvGen.ar(Env.linen(0.001, 0.02, 0.001)) * 0.15;
-    pop = SinOsc.ar(popFreq) * popAmp;
+	pop = SinOsc.ar(popFreq * pitch) * popAmp;
     // click is spectrally rich, covering the high-freq range
     // you can use Formant, FM, noise, whatever
     clickAmp = EnvGen.ar(Env.perc(0.001, 0.01)) * 0.15;
-    click = LPF.ar(Formant.ar(910, 4760, 2110), 3140) * clickAmp;
+    click = LPF.ar(Formant.ar(910, 4760, 2110), 3140 * pitch) * clickAmp;
 
     snd = body + pop + click;
 	snd = (snd.tanh);
 
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
 
 }).add;
 
@@ -251,7 +299,7 @@ SynthDef(\kick, {
 // Snare
 SynthDef(\snare, {
 	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
 
     var pop, popAmp, popFreq;
     var noise, noiseAmp;
@@ -261,16 +309,16 @@ SynthDef(\snare, {
     // slowing down a little and stopping in mid-to-low
     popFreq = EnvGen.ar(Env([3261, 410, 160], [0.005, 0.01], curve: \exp));
     popAmp = EnvGen.ar(Env.perc(0.001, 0.11)) * 0.7;
-    pop = SinOsc.ar(popFreq) * popAmp;
+    pop = SinOsc.ar(popFreq * pitch) * popAmp;
     // bandpass-filtered white noise
     noiseAmp = EnvGen.ar(Env.perc(0.001, 0.15), doneAction: 2);
-    noise = BPF.ar(WhiteNoise.ar, 810, 1.6) * noiseAmp;
+    noise = BPF.ar(WhiteNoise.ar, 810 * pitch, 1.6) * noiseAmp;
 
-    snd = (pop + noise) * 1.3;
+    snd = (pop + noise) * 1.2;
 
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
 
 }).add;
 
@@ -278,7 +326,7 @@ SynthDef(\snare, {
 // Clap
 SynthDef(\clap, {
 	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
 
 	var env1, env2, snd, noise1, noise2;
 
@@ -292,24 +340,24 @@ SynthDef(\clap, {
     );
 
     noise1 = WhiteNoise.ar(env1);
-    noise1 = HPF.ar(noise1, 600);
-    noise1 = LPF.ar(noise1, XLine.kr(7200, 4000, 0.03));
-    noise1 = BPF.ar(noise1, 1620, 3);
+    noise1 = HPF.ar(noise1, 600 * pitch);
+    noise1 = LPF.ar(noise1, XLine.kr(7200, 4000, 0.03) * pitch);
+    noise1 = BPF.ar(noise1, 1620 * pitch, 3);
 
     // noise 2 - 1 longer single
     env2 = EnvGen.ar(Env.new([0, 1, 0], [0.02, 0.18], [0, -4]), doneAction:2);
 
     noise2 = WhiteNoise.ar(env2);
-    noise2 = HPF.ar(noise2, 1000);
-    noise2 = LPF.ar(noise2, 7600);
-    noise2 = BPF.ar(noise2, 1230, 0.7, 0.7);
+    noise2 = HPF.ar(noise2, 1000 * pitch);
+    noise2 = LPF.ar(noise2, 7600 * pitch);
+    noise2 = BPF.ar(noise2, 1230 * pitch, 0.7, 0.7);
     snd = noise1 + noise2;
     snd = snd * 2;
     snd = snd.softclip;
 
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
 
 }).add;
 
@@ -317,7 +365,7 @@ SynthDef(\clap, {
 // Closed Hat
 SynthDef(\closedhat, {
 	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
 
 
     var click, clickAmp;
@@ -326,13 +374,13 @@ SynthDef(\closedhat, {
 
     // noise -> resonance -> expodec envelope
     noiseAmp = EnvGen.ar(Env.perc(0.001, 0.3, curve: -8), doneAction: 2);
-    noise = Mix(BPF.ar(ClipNoise.ar, [4010, 4151], [0.15, 0.56], [1.0, 0.6])) * 0.7 * noiseAmp;
+    noise = Mix(BPF.ar(ClipNoise.ar, [4010, 4151] * pitch, [0.15, 0.56], [1.0, 0.6])) * 0.7 * noiseAmp;
 
     snd = noise;
 
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
 
 }).add;
 
@@ -340,19 +388,19 @@ SynthDef(\closedhat, {
 // Open Hat
 SynthDef(\openhat, {
 	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0;
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
 
     var hatosc, hatenv, hatnoise, snd ;
 
-    hatnoise = {LPF.ar(WhiteNoise.ar(1),6000)};
-    hatosc = {HPF.ar(hatnoise,2000)};
+    hatnoise = {LPF.ar(WhiteNoise.ar(1),6000 * pitch)};
+    hatosc = {HPF.ar(hatnoise,2000 * pitch)};
     hatenv = {Line.ar(1, 0, 0.3, doneAction: 2)};
 
     snd = (hatosc * hatenv);
 
-	Out.ar(outBus, Pan2.ar(snd, pan, vol));
-	Out.ar(reverbFxBus, snd * reverbSendAmount);
-	Out.ar(delayFxBus, snd * delaySendAmount);
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
 
 }).add;
 
@@ -369,7 +417,9 @@ SynthDef(\openhat, {
 			\vol, ~kickVolume,
 			\pan, ~kickPan,
 			\delaySendAmount, ~kickDelaySend,
-			\reverbSendAmount, ~kickReverbSend],
+			\reverbSendAmount, ~kickReverbSend,
+			\pitch, ~kickPitch,
+			\mute, ~kickMute],
 		~drums);
 };
 
@@ -384,7 +434,9 @@ SynthDef(\openhat, {
 			\vol, ~snareVolume,
 			\pan, ~snarePan,
 			\delaySendAmount, ~snareDelaySend,
-			\reverbSendAmount, ~snareReverbSend],
+			\reverbSendAmount, ~snareReverbSend,
+			\pitch, ~snarePitch,
+			\mute, ~snareMute],
 		~drums);
 };
 
@@ -399,7 +451,9 @@ SynthDef(\openhat, {
 			\vol, ~clapVolume,
 			\pan, ~clapPan,
 			\delaySendAmount, ~clapDelaySend,
-			\reverbSendAmount, ~clapReverbSend],
+			\reverbSendAmount, ~clapReverbSend,
+			\pitch, ~clapPitch,
+			\mute, ~clapMute],
 		~drums);
 };
 
@@ -413,7 +467,9 @@ SynthDef(\openhat, {
 			\vol, ~closedHatVolume,
 			\pan, ~closedHatPan,
 			\delaySendAmount, ~closedHatDelaySend,
-			\reverbSendAmount, ~closedHatReverbSend],
+			\reverbSendAmount, ~closedHatReverbSend,
+			\pitch, ~closedHatPitch,
+			\mute, ~closedHatMute],
 		~drums);
 };
 
@@ -427,7 +483,9 @@ SynthDef(\openhat, {
 			\vol, ~openHatVolume,
 			\pan, ~openHatPan,
 			\delaySendAmount, ~openHatDelaySend,
-			\reverbSendAmount, ~openHatReverbSend],
+			\reverbSendAmount, ~openHatReverbSend,
+			\pitch, ~openHatPitch,
+			\mute, ~openHatMute],
 		~drums);
 };
 
@@ -997,11 +1055,15 @@ OSCdef.new(
 	\setBpm,
 	{
 		|msg|
-		~bpm = msg[1];
+		~bpm = round(msg[1]).asInteger;
 		~tempo = TempoClock(~bpm/120);
+		~receivingAddr.sendMsg('/sequencer/bpm_label', ~bpm);
+
 
 		// stopping the sequencer
-		~sendingAddress.sendMsg("/sequencer/play", 0)
+		~localAddress.sendMsg("/sequencer/play", 0);
+		~receivingAddr.sendMsg('/sequencer/play', 0);
+
 	},
 	'/sequencer/bpm'
 );
@@ -1017,6 +1079,57 @@ OSCdef.new(
 	'/masterVolume'
 );
 
+// kick mute
+OSCdef.new(
+	\setKickMute,
+	{
+		|msg|
+		~kickMute = msg[1];
+	},
+	'/mix/mute/1/1'
+);
+
+// snare mute
+OSCdef.new(
+	\setSnareMute,
+	{
+		|msg|
+		~snareMute = msg[1];
+	},
+	'/mix/mute/1/2'
+);
+
+// clap mute
+OSCdef.new(
+	\setClapMute,
+	{
+		|msg|
+		~clapMute = msg[1];
+	},
+	'/mix/mute/1/3'
+);
+
+// closed hat mute
+OSCdef.new(
+	\setClosedHatMute,
+	{
+		|msg|
+		~closedHatMute = msg[1];
+	},
+	'/mix/mute/1/4'
+);
+
+// open hat mute
+OSCdef.new(
+	\setOpenHatMute,
+	{
+		|msg|
+		~openHatMute = msg[1];
+	},
+	'/mix/mute/1/5'
+);
+
+
 // kick volume
 OSCdef.new(
 	\setKickVolume,
@@ -1024,7 +1137,7 @@ OSCdef.new(
 		|msg|
 		~kickVolume = msg[1];
 	},
-	'/kick/volume'
+	'/mix/volume/1'
 );
 
 // kick pan
@@ -1057,6 +1170,16 @@ OSCdef.new(
 	'/kick/reverb'
 );
 
+// kick pitch
+OSCdef.new(
+	\setKickPitch,
+	{
+		|msg|
+		~kickPitch = msg[1];
+	},
+	'/kick/pitch'
+);
+
 // snare volume
 OSCdef.new(
 	\setSnareVolume,
@@ -1064,7 +1187,7 @@ OSCdef.new(
 		|msg|
 		~snareVolume = msg[1];
 	},
-	'/snare/volume'
+	'/mix/volume/2'
 );
 
 // snare pan
@@ -1097,6 +1220,16 @@ OSCdef.new(
 	'/snare/reverb'
 );
 
+// snare pitch
+OSCdef.new(
+	\setSnarePitch,
+	{
+		|msg|
+		~snarePitch = msg[1];
+	},
+	'/snare/pitch'
+);
+
 // clap volume
 OSCdef.new(
 	\setClapVolume,
@@ -1104,7 +1237,7 @@ OSCdef.new(
 		|msg|
 		~clapVolume = msg[1];
 	},
-	'/clap/volume'
+	'/mix/volume/3'
 );
 
 // clap pan
@@ -1137,6 +1270,16 @@ OSCdef.new(
 	'/clap/reverb'
 );
 
+// clap pitch
+OSCdef.new(
+	\setClapPitch,
+	{
+		|msg|
+		~clapPitch = msg[1];
+	},
+	'/clap/pitch'
+);
+
 // closed hat volume
 OSCdef.new(
 	\setClosedHatVolume,
@@ -1144,7 +1287,7 @@ OSCdef.new(
 		|msg|
 		~closedHatVolume = msg[1];
 	},
-	'/closedHat/volume'
+	'/mix/volume/4'
 );
 
 // closed hat pan
@@ -1177,6 +1320,16 @@ OSCdef.new(
 	'/closedHat/reverb'
 );
 
+// closed hat pitch
+OSCdef.new(
+	\setClosedHatPitch,
+	{
+		|msg|
+		~closedHatPitch = msg[1];
+	},
+	'/closedHat/pitch'
+);
+
 // open hat volume
 OSCdef.new(
 	\setOpenHatVolume,
@@ -1184,7 +1337,7 @@ OSCdef.new(
 		|msg|
 		~openHatVolume = msg[1];
 	},
-	'/openHat/volume'
+	'/mix/volume/5'
 );
 
 // open hat pan
@@ -1216,6 +1369,19 @@ OSCdef.new(
 	},
 	'/openHat/reverb'
 );
+
+// open hat pitch
+OSCdef.new(
+	\setOpenHatPitch,
+	{
+		|msg|
+		~openHatPitch = msg[1];
+	},
+	'/openHat/pitch'
+);
+
+
+
 
 // reverb damping
 OSCdef.new(
@@ -1277,12 +1443,115 @@ OSCdef.new(
 	\seFilterCutoff,
 	{
 		|msg|
+		var cutoffMapping = ((2)**((msg[1]+1)*7)+222).clip(350, 16000);
 		~filterCutoff = msg[1];
-		~filter.set(\cutoff, msg[1]);
+		~filter.set(\cutoff, cutoffMapping);
 	},
 	'/mix/cutoff'
 );
 
 
 
+// >>    initial GUI setters     << //
+
+
+~receivingAddr.sendMsg('sequencer/bpm', ~bpm);
+~receivingAddr.sendMsg('/sequencer/bpm_label', round(~bpm).asInteger);
+~receivingAddr.sendMsg('mix/masterVolume', ~masterVolume);
+
+~receivingAddr.sendMsg('mix/volume/1', ~kickVolume);
+~receivingAddr.sendMsg('kick/pan', ~kickPan);
+~receivingAddr.sendMsg('kick/delay', ~kickDelaySend);
+~receivingAddr.sendMsg('kick/reverb', ~kickReverbSend);
+~receivingAddr.sendMsg('kick/pitch', ~kickPitch);
+~receivingAddr.sendMsg('mix/mute/1/1', ~kickMute);
+
+~receivingAddr.sendMsg('mix/volume/2', ~snareVolume);
+~receivingAddr.sendMsg('snare/pan', ~snarePan);
+~receivingAddr.sendMsg('snare/delay', ~snareDelaySend);
+~receivingAddr.sendMsg('snare/reverb', ~snareReverbSend);
+~receivingAddr.sendMsg('snare/pitch', ~snarePitch);
+~receivingAddr.sendMsg('mix/mute/1/2', ~snareMute);
+
+~receivingAddr.sendMsg('mix/volume/3', ~clapVolume);
+~receivingAddr.sendMsg('clap/pan', ~clapPan);
+~receivingAddr.sendMsg('clap/delay', ~clapDelaySend);
+~receivingAddr.sendMsg('clap/reverb', ~clapReverbSend);
+~receivingAddr.sendMsg('clap/pitch', ~clapPitch);
+~receivingAddr.sendMsg('mix/mute/1/3', ~clapMute);
+
+~receivingAddr.sendMsg('mix/volume/4', ~closedHatVolume);
+~receivingAddr.sendMsg('closedHat/pan', ~closedHatPan);
+~receivingAddr.sendMsg('closedHat/delay', ~closedHatDelaySend);
+~receivingAddr.sendMsg('closedHat/reverb', ~closedHatReverbSend);
+~receivingAddr.sendMsg('closedHat/pitch', ~closedHatPitch);
+~receivingAddr.sendMsg('mix/mute/1/4', ~closedHatMute);
+
+~receivingAddr.sendMsg('mix/volume/5', ~openHatVolume);
+~receivingAddr.sendMsg('openHat/pan', ~openHatPan);
+~receivingAddr.sendMsg('openHat/delay', ~openHatDelaySend);
+~receivingAddr.sendMsg('openHat/reverb', ~openHatReverbSend);
+~receivingAddr.sendMsg('openHat/pitch', ~openHatPitch);
+~receivingAddr.sendMsg('mix/mute/1/5', ~openHatMute);
+
+~receivingAddr.sendMsg('fx/time', ~delayTime);
+~receivingAddr.sendMsg('fx/feedback', ~delayFeedback);
+
+~receivingAddr.sendMsg('fx/damp', ~reverbDamp);
+~receivingAddr.sendMsg('fx/decay', ~reverbDecay);
+
+~receivingAddr.sendMsg('mix/crush', ~bitCrusherDist);
+
+~receivingAddr.sendMsg('mix/cutoff', 1); // internal mapping
+
+
+~receivingAddr.sendMsg('/sequencer/grid/5/1', ~kickPattern[0]);
+~receivingAddr.sendMsg('/sequencer/grid/5/2', ~kickPattern[1]);
+~receivingAddr.sendMsg('/sequencer/grid/5/3', ~kickPattern[2]);
+~receivingAddr.sendMsg('/sequencer/grid/5/4', ~kickPattern[3]);
+~receivingAddr.sendMsg('/sequencer/grid/5/5', ~kickPattern[4]);
+~receivingAddr.sendMsg('/sequencer/grid/5/6', ~kickPattern[5]);
+~receivingAddr.sendMsg('/sequencer/grid/5/7', ~kickPattern[6]);
+~receivingAddr.sendMsg('/sequencer/grid/5/8', ~kickPattern[7]);
+
+~receivingAddr.sendMsg('/sequencer/grid/4/1', ~snarePattern[0]);
+~receivingAddr.sendMsg('/sequencer/grid/4/2', ~snarePattern[1]);
+~receivingAddr.sendMsg('/sequencer/grid/4/3', ~snarePattern[2]);
+~receivingAddr.sendMsg('/sequencer/grid/4/4', ~snarePattern[3]);
+~receivingAddr.sendMsg('/sequencer/grid/4/5', ~snarePattern[4]);
+~receivingAddr.sendMsg('/sequencer/grid/4/6', ~snarePattern[5]);
+~receivingAddr.sendMsg('/sequencer/grid/4/7', ~snarePattern[6]);
+~receivingAddr.sendMsg('/sequencer/grid/4/8', ~snarePattern[7]);
+
+~receivingAddr.sendMsg('/sequencer/grid/3/1', ~clapPattern[0]);
+~receivingAddr.sendMsg('/sequencer/grid/3/2', ~clapPattern[1]);
+~receivingAddr.sendMsg('/sequencer/grid/3/3', ~clapPattern[2]);
+~receivingAddr.sendMsg('/sequencer/grid/3/4', ~clapPattern[3]);
+~receivingAddr.sendMsg('/sequencer/grid/3/5', ~clapPattern[4]);
+~receivingAddr.sendMsg('/sequencer/grid/3/6', ~clapPattern[5]);
+~receivingAddr.sendMsg('/sequencer/grid/3/7', ~clapPattern[6]);
+~receivingAddr.sendMsg('/sequencer/grid/3/8', ~clapPattern[7]);
+
+~receivingAddr.sendMsg('/sequencer/grid/2/1', ~closedHatPattern[0]);
+~receivingAddr.sendMsg('/sequencer/grid/2/2', ~closedHatPattern[1]);
+~receivingAddr.sendMsg('/sequencer/grid/2/3', ~closedHatPattern[2]);
+~receivingAddr.sendMsg('/sequencer/grid/2/4', ~closedHatPattern[3]);
+~receivingAddr.sendMsg('/sequencer/grid/2/5', ~closedHatPattern[4]);
+~receivingAddr.sendMsg('/sequencer/grid/2/6', ~closedHatPattern[5]);
+~receivingAddr.sendMsg('/sequencer/grid/2/7', ~closedHatPattern[6]);
+~receivingAddr.sendMsg('/sequencer/grid/2/8', ~closedHatPattern[7]);
+
+~receivingAddr.sendMsg('/sequencer/grid/1/1', ~openHatPattern[0]);
+~receivingAddr.sendMsg('/sequencer/grid/1/2', ~openHatPattern[1]);
+~receivingAddr.sendMsg('/sequencer/grid/1/3', ~openHatPattern[2]);
+~receivingAddr.sendMsg('/sequencer/grid/1/4', ~openHatPattern[3]);
+~receivingAddr.sendMsg('/sequencer/grid/1/5', ~openHatPattern[4]);
+~receivingAddr.sendMsg('/sequencer/grid/1/6', ~openHatPattern[5]);
+~receivingAddr.sendMsg('/sequencer/grid/1/7', ~openHatPattern[6]);
+~receivingAddr.sendMsg('/sequencer/grid/1/8', ~openHatPattern[7]);
+
+~receivingAddr.sendMsg('/sequencer/play', 0);
+
+
 )
+
