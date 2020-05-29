@@ -3,24 +3,20 @@ s.meter;
 s.plotTree;
 s.reboot;
 
-o = Server.default.options;
-o.device = "ASIO : UMC ASIO Driver";
-Server.default.reboot;
-
-/**
+/***********************************************************************************************************************
 
 Usage Instructions:
 
 - Download TouchOSC for your mobile phone
-- Download the gui editor from https://hexler.net/products/touchosc
-- Load "Drum_Machine.touchosc" with the gui editor
+- Copy the "Drum_Machine.touchosc" file in your mobile phone and load the layout within the app
+- In alternative, download the gui editor from https://hexler.net/products/touchosc, load "Drum_Machine.touchosc" within the gui editor and use the sync function
 - Inside TouchOSC app settings, put the host ip, 57120 as output port, 7771 as input port
 - Take note of you mobile ip address, and modify ~receiverIP variable (below under Parameters)
-- Start SuperCollider Server
+- Boot SuperCollider Server
 - Execute the block code below while the mobile gui is loaded
 - Start playing with the Drum Machine!
 
-*/
+***********************************************************************************************************************/
 
 
 (
@@ -97,7 +93,6 @@ SynthDef(\bitCrusher, {
 	Out.ar(outBus, fx * mix);
 }).add;
 
-// ================  Sound Definitions  ================ //
 
 // filter
 SynthDef(\filter, {
@@ -107,39 +102,13 @@ SynthDef(\filter, {
 
 	signal = In.ar(inBus, 2);
 
-	fx = BLowPass4.ar(signal, cutoff, 0.1);
+	fx = BLowPass4.ar(signal, cutoff, 0.275);
 
 
 	ReplaceOut.ar(outBus, fx);
 }).add;
 
-
-// Snare
-SynthDef(\snare, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
-
-    var pop, popAmp, popFreq;
-    var noise, noiseAmp;
-    var snd;
-
-	// pop makes a click coming from very high frequencies
-    // slowing down a little and stopping in mid-to-low
-    popFreq = EnvGen.ar(Env([3261, 410, 160], [0.005, 0.01], curve: \exp));
-    popAmp = EnvGen.ar(Env.perc(0.001, 0.11)) * 0.7;
-    pop = SinOsc.ar(popFreq * pitch) * popAmp;
-    // bandpass-filtered white noise
-    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.15), doneAction: 2);
-    noise = BPF.ar(WhiteNoise.ar, 810 * pitch, 1.6) * noiseAmp;
-
-    snd = (pop + noise) * 1.2;
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
-	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
-	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
-
-}).add;
-
+// ================  Sound Definitions  ================ //
 
 // Kick
 SynthDef(\kick, {
@@ -165,7 +134,34 @@ SynthDef(\kick, {
     click = LPF.ar(Formant.ar(910, 4760, 2110), 3140 * pitch) * clickAmp;
 
     snd = body + pop + click;
-	snd = (snd.tanh);
+	snd = (snd.tanh) * 0.9;
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
+
+}).add;
+
+
+// Snare
+SynthDef(\snare, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
+
+    var pop, popAmp, popFreq;
+    var noise, noiseAmp;
+    var snd;
+
+	// pop makes a click coming from very high frequencies
+    // slowing down a little and stopping in mid-to-low
+    popFreq = EnvGen.ar(Env([3261, 410, 160], [0.005, 0.01], curve: \exp));
+    popAmp = EnvGen.ar(Env.perc(0.001, 0.11)) * 0.7;
+    pop = SinOsc.ar(popFreq * pitch) * popAmp;
+    // bandpass-filtered white noise
+    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.15), doneAction: 2);
+    noise = BPF.ar(WhiteNoise.ar, 810 * pitch, 1.6) * noiseAmp;
+
+    snd = (pop + noise) * 0.85;
 
 	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
 	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
@@ -227,7 +223,7 @@ SynthDef(\closedhat, {
     noiseAmp = EnvGen.ar(Env.perc(0.001, 0.3, curve: -8), doneAction: 2);
     noise = Mix(BPF.ar(ClipNoise.ar, [4010, 4151] * pitch, [0.15, 0.56], [1.0, 0.6])) * 0.7 * noiseAmp;
 
-    snd = noise;
+    snd = noise * 0.9;
 
 	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
 	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
@@ -247,7 +243,7 @@ SynthDef(\openhat, {
     hatosc = {HPF.ar(hatnoise,2000 * pitch)};
     hatenv = {Line.ar(1, 0, 0.3, doneAction: 2)};
 
-    snd = (hatosc * hatenv);
+    snd = (hatosc * hatenv) * 0.8;
 
 	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
 	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
@@ -262,7 +258,7 @@ SynthDef(\openhat, {
 
 // global
 
-~receiverIP = "192.168.1.11"; //change this with the actual IP of your mobile phone
+~receiverIP = "192.168.1.155"; //change this with the actual IP of your mobile phone
 
 ~localAddress = NetAddr.new("127.0.0.1", 57120);
 ~receivingAddr = NetAddr.new(~receiverIP, 7771);
