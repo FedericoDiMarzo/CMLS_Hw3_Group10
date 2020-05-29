@@ -6,13 +6,263 @@ s.reboot;
 o = Server.default.options;
 o.device = "ASIO : UMC ASIO Driver";
 Server.default.reboot;
-// ================ Parameters  ================ //
+
+/**
+
+Usage Instructions:
+
+- Download TouchOSC for your mobile phone
+- Download the gui editor from https://hexler.net/products/touchosc
+- Load "Drum_Machine.touchosc" with the gui editor
+- Inside TouchOSC app settings, put the host ip, 57120 as output port, 7771 as input port
+- Take note of you mobile ip address, and modify ~receiverIP variable (below under Parameters)
+- Start SuperCollider Server
+- Execute the block code below while the mobile gui is loaded
+- Start playing with the Drum Machine!
+
+*/
+
 
 (
 
+// ================ Routing & Effects Definitions ================ //
+
+// master volume
+SynthDef(\masterVolume, {
+	arg inBus, outBus,
+	masterVol = 1;
+
+	var signal,fx;
+
+	signal = In.ar(inBus, 2);
+
+	fx = signal * masterVol;
+
+	ReplaceOut.ar(outBus, fx);
+}).add;
+
+
+// Reverb
+SynthDef(\reverb, {
+	arg outBus, inBus,
+		decay = 0.5, damp = 0.5;
+	var signal, fx;
+
+	signal = In.ar(inBus, 2);
+
+	fx = FreeVerb2.ar(
+		in: signal[0],
+		in2: signal[1],
+		mix: 1,
+		room: decay,
+		damp: damp,
+		mul: 0.7
+	);
+
+	Out.ar(outBus, fx);
+}).add;
+
+
+// Delay
+SynthDef(\delay, {
+	arg inBus, outBus,
+		time = 0.5, feed = 1;
+	var signal, fx;
+
+	signal = In.ar(inBus, 2);
+
+	fx = CombC.ar(
+		in: signal,
+		maxdelaytime: 10,
+		delaytime: time,
+		decaytime: feed*time,
+		mul: 1
+	);
+
+	Out.ar(outBus, {fx}.dup);
+}).add;
+
+
+// bitCrusher
+SynthDef(\bitCrusher, {
+	arg inBus, outBus,
+	    dist = -5;
+	var signal, fx, mix = 0.5;
+
+	signal = In.ar(inBus, 2);
+
+	fx = signal.round(2**(dist));
+
+	Out.ar(outBus, signal * (1-mix));
+	Out.ar(outBus, fx * mix);
+}).add;
+
+// ================  Sound Definitions  ================ //
+
+// filter
+SynthDef(\filter, {
+		arg inBus, outBus,
+	    cutoff = 5000;
+	var signal, fx;
+
+	signal = In.ar(inBus, 2);
+
+	fx = BLowPass4.ar(signal, cutoff, 0.1);
+
+
+	ReplaceOut.ar(outBus, fx);
+}).add;
+
+
+// Snare
+SynthDef(\snare, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
+
+    var pop, popAmp, popFreq;
+    var noise, noiseAmp;
+    var snd;
+
+	// pop makes a click coming from very high frequencies
+    // slowing down a little and stopping in mid-to-low
+    popFreq = EnvGen.ar(Env([3261, 410, 160], [0.005, 0.01], curve: \exp));
+    popAmp = EnvGen.ar(Env.perc(0.001, 0.11)) * 0.7;
+    pop = SinOsc.ar(popFreq * pitch) * popAmp;
+    // bandpass-filtered white noise
+    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.15), doneAction: 2);
+    noise = BPF.ar(WhiteNoise.ar, 810 * pitch, 1.6) * noiseAmp;
+
+    snd = (pop + noise) * 1.2;
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
+
+}).add;
+
+
+// Kick
+SynthDef(\kick, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
+
+    var body, bodyFreq, bodyAmp;
+    var pop, popFreq, popAmp;
+    var click, clickAmp;
+    var snd;
+
+    // body starts midrange, quickly drops down to low freqs, and trails off
+    bodyFreq = EnvGen.ar(Env([261, 120, 51], [0.035, 0.08], curve: \exp));
+    bodyAmp = EnvGen.ar(Env.linen(0.005, 0.1, 0.3), doneAction: 2);
+    body = SinOsc.ar(bodyFreq * pitch ) * bodyAmp;
+    // pop sweeps over the midrange
+    popFreq = XLine.kr(750, 261, 0.02);
+    popAmp = EnvGen.ar(Env.linen(0.001, 0.02, 0.001)) * 0.15;
+	pop = SinOsc.ar(popFreq * pitch) * popAmp;
+    // click is spectrally rich, covering the high-freq range
+    // you can use Formant, FM, noise, whatever
+    clickAmp = EnvGen.ar(Env.perc(0.001, 0.01)) * 0.15;
+    click = LPF.ar(Formant.ar(910, 4760, 2110), 3140 * pitch) * clickAmp;
+
+    snd = body + pop + click;
+	snd = (snd.tanh);
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
+
+}).add;
+
+
+// Clap
+SynthDef(\clap, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
+
+	var env1, env2, snd, noise1, noise2;
+
+    // noise 1 - 4 short repeats
+    env1 = EnvGen.ar(
+        Env.new(
+            [0, 1, 0, 0.9, 0, 0.7, 0, 0.5, 0],
+            [0.001, 0.009, 0, 0.008, 0, 0.01, 0, 0.03],
+            [0, -3, 0, -3, 0, -3, 0, -4]
+        )
+    );
+
+    noise1 = WhiteNoise.ar(env1);
+    noise1 = HPF.ar(noise1, 600 * pitch);
+    noise1 = LPF.ar(noise1, XLine.kr(7200, 4000, 0.03) * pitch);
+    noise1 = BPF.ar(noise1, 1620 * pitch, 3);
+
+    // noise 2 - 1 longer single
+    env2 = EnvGen.ar(Env.new([0, 1, 0], [0.02, 0.18], [0, -4]), doneAction:2);
+
+    noise2 = WhiteNoise.ar(env2);
+    noise2 = HPF.ar(noise2, 1000 * pitch);
+    noise2 = LPF.ar(noise2, 7600 * pitch);
+    noise2 = BPF.ar(noise2, 1230 * pitch, 0.7, 0.7);
+    snd = noise1 + noise2;
+    snd = snd * 2;
+    snd = snd.softclip;
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
+
+}).add;
+
+
+// Closed Hat
+SynthDef(\closedhat, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
+
+
+    var click, clickAmp;
+    var noise, noiseAmp;
+    var snd;
+
+    // noise -> resonance -> expodec envelope
+    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.3, curve: -8), doneAction: 2);
+    noise = Mix(BPF.ar(ClipNoise.ar, [4010, 4151] * pitch, [0.15, 0.56], [1.0, 0.6])) * 0.7 * noiseAmp;
+
+    snd = noise;
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
+
+}).add;
+
+
+// Open Hat
+SynthDef(\openhat, {
+	arg outBus, reverbFxBus, delayFxBus,
+	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
+
+    var hatosc, hatenv, hatnoise, snd ;
+
+    hatnoise = {LPF.ar(WhiteNoise.ar(1),6000 * pitch)};
+    hatosc = {HPF.ar(hatnoise,2000 * pitch)};
+    hatenv = {Line.ar(1, 0, 0.3, doneAction: 2)};
+
+    snd = (hatosc * hatenv);
+
+	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
+	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
+	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
+
+}).add;
+
+
+
+// ================ Parameters  ================ //
+
+
 // global
 
-~receiverIP = "192.168.1.155"; //change this with the actual IP of your mobile phone
+~receiverIP = "192.168.1.11"; //change this with the actual IP of your mobile phone
 
 ~localAddress = NetAddr.new("127.0.0.1", 57120);
 ~receivingAddr = NetAddr.new(~receiverIP, 7771);
@@ -138,18 +388,7 @@ Server.default.reboot;
 ~auxBus = Bus.audio(s, 2);
 
 
-SynthDef(\masterVolume, {
-	arg inBus, outBus,
-	masterVol = 1;
 
-	var signal,fx;
-
-	signal = In.ar(inBus, 2);
-
-	fx = signal * masterVol;
-
-	ReplaceOut.ar(outBus, fx);
-}).add;
 
 ~mVolume = Synth(\masterVolume,
 	[\inbus, 0,
@@ -161,25 +400,7 @@ SynthDef(\masterVolume, {
 
 // ================       FX       ================ //
 
-// Reverb
-SynthDef(\reverb, {
-	arg outBus, inBus,
-		decay = 0.5, damp = 0.5;
-	var signal, fx;
 
-	signal = In.ar(inBus, 2);
-
-	fx = FreeVerb2.ar(
-		in: signal[0],
-		in2: signal[1],
-		mix: 1,
-		room: decay,
-		damp: damp,
-		mul: 0.7
-	);
-
-	Out.ar(outBus, fx);
-}).add;
 
 ~reverb = Synth(\reverb,
 	[\inBus, ~reverbAux,
@@ -190,24 +411,7 @@ SynthDef(\reverb, {
 
 
 
-// Delay
-SynthDef(\delay, {
-	arg inBus, outBus,
-		time = 0.5, feed = 1;
-	var signal, fx;
 
-	signal = In.ar(inBus, 2);
-
-	fx = CombC.ar(
-		in: signal,
-		maxdelaytime: 10,
-		delaytime: time,
-		decaytime: feed*time,
-		mul: 1
-	);
-
-	Out.ar(outBus, {fx}.dup);
-}).add;
 
 ~delay = Synth(\delay,
 	[\inBus, ~delayAux,
@@ -217,19 +421,7 @@ SynthDef(\delay, {
 	~effects);
 
 
-// bitCrusher
-SynthDef(\bitCrusher, {
-	arg inBus, outBus,
-	    dist = -5;
-	var signal, fx, mix = 0.5;
 
-	signal = In.ar(inBus, 2);
-
-	fx = signal.round(2**(dist));
-
-	Out.ar(outBus, signal * (1-mix));
-	Out.ar(outBus, fx * mix);
-}).add;
 
 ~bitCrusher = Synth(\bitCrusher,
 	[\inBus, ~preFx,
@@ -238,171 +430,13 @@ SynthDef(\bitCrusher, {
 	~effects);
 
 
-// filter
-SynthDef(\filter, {
-		arg inBus, outBus,
-	    cutoff = 5000;
-	var signal, fx;
 
-	signal = In.ar(inBus, 2);
-
-	fx = BLowPass4.ar(signal, cutoff, 0.1);
-
-
-	ReplaceOut.ar(outBus, fx);
-}).add;
 
 ~filter = Synth(\filter,
 	[\inBus, 0,
 	\outBus, 0,
 		\cutoff, ~filterCutoff],
 	~master);
-
-
-
-// ================     Sounds     ================ //
-
-// Kick
-SynthDef(\kick, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
-
-    var body, bodyFreq, bodyAmp;
-    var pop, popFreq, popAmp;
-    var click, clickAmp;
-    var snd;
-
-    // body starts midrange, quickly drops down to low freqs, and trails off
-    bodyFreq = EnvGen.ar(Env([261, 120, 51], [0.035, 0.08], curve: \exp));
-    bodyAmp = EnvGen.ar(Env.linen(0.005, 0.1, 0.3), doneAction: 2);
-    body = SinOsc.ar(bodyFreq * pitch ) * bodyAmp;
-    // pop sweeps over the midrange
-    popFreq = XLine.kr(750, 261, 0.02);
-    popAmp = EnvGen.ar(Env.linen(0.001, 0.02, 0.001)) * 0.15;
-	pop = SinOsc.ar(popFreq * pitch) * popAmp;
-    // click is spectrally rich, covering the high-freq range
-    // you can use Formant, FM, noise, whatever
-    clickAmp = EnvGen.ar(Env.perc(0.001, 0.01)) * 0.15;
-    click = LPF.ar(Formant.ar(910, 4760, 2110), 3140 * pitch) * clickAmp;
-
-    snd = body + pop + click;
-	snd = (snd.tanh);
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
-	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
-	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
-
-}).add;
-
-
-
-// Snare
-SynthDef(\snare, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
-
-    var pop, popAmp, popFreq;
-    var noise, noiseAmp;
-    var snd;
-
-	// pop makes a click coming from very high frequencies
-    // slowing down a little and stopping in mid-to-low
-    popFreq = EnvGen.ar(Env([3261, 410, 160], [0.005, 0.01], curve: \exp));
-    popAmp = EnvGen.ar(Env.perc(0.001, 0.11)) * 0.7;
-    pop = SinOsc.ar(popFreq * pitch) * popAmp;
-    // bandpass-filtered white noise
-    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.15), doneAction: 2);
-    noise = BPF.ar(WhiteNoise.ar, 810 * pitch, 1.6) * noiseAmp;
-
-    snd = (pop + noise) * 1.2;
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
-	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
-	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
-
-}).add;
-
-
-// Clap
-SynthDef(\clap, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
-
-	var env1, env2, snd, noise1, noise2;
-
-    // noise 1 - 4 short repeats
-    env1 = EnvGen.ar(
-        Env.new(
-            [0, 1, 0, 0.9, 0, 0.7, 0, 0.5, 0],
-            [0.001, 0.009, 0, 0.008, 0, 0.01, 0, 0.03],
-            [0, -3, 0, -3, 0, -3, 0, -4]
-        )
-    );
-
-    noise1 = WhiteNoise.ar(env1);
-    noise1 = HPF.ar(noise1, 600 * pitch);
-    noise1 = LPF.ar(noise1, XLine.kr(7200, 4000, 0.03) * pitch);
-    noise1 = BPF.ar(noise1, 1620 * pitch, 3);
-
-    // noise 2 - 1 longer single
-    env2 = EnvGen.ar(Env.new([0, 1, 0], [0.02, 0.18], [0, -4]), doneAction:2);
-
-    noise2 = WhiteNoise.ar(env2);
-    noise2 = HPF.ar(noise2, 1000 * pitch);
-    noise2 = LPF.ar(noise2, 7600 * pitch);
-    noise2 = BPF.ar(noise2, 1230 * pitch, 0.7, 0.7);
-    snd = noise1 + noise2;
-    snd = snd * 2;
-    snd = snd.softclip;
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
-	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
-	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
-
-}).add;
-
-
-// Closed Hat
-SynthDef(\closedhat, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
-
-
-    var click, clickAmp;
-    var noise, noiseAmp;
-    var snd;
-
-    // noise -> resonance -> expodec envelope
-    noiseAmp = EnvGen.ar(Env.perc(0.001, 0.3, curve: -8), doneAction: 2);
-    noise = Mix(BPF.ar(ClipNoise.ar, [4010, 4151] * pitch, [0.15, 0.56], [1.0, 0.6])) * 0.7 * noiseAmp;
-
-    snd = noise;
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
-	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
-	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
-
-}).add;
-
-
-// Open Hat
-SynthDef(\openhat, {
-	arg outBus, reverbFxBus, delayFxBus,
-	    vol = 1.0, pan = 0.5, reverbSendAmount = 0.0, delaySendAmount = 0.0, pitch = 1, mute = 0;
-
-    var hatosc, hatenv, hatnoise, snd ;
-
-    hatnoise = {LPF.ar(WhiteNoise.ar(1),6000 * pitch)};
-    hatosc = {HPF.ar(hatnoise,2000 * pitch)};
-    hatenv = {Line.ar(1, 0, 0.3, doneAction: 2)};
-
-    snd = (hatosc * hatenv);
-
-	Out.ar(outBus, Pan2.ar(snd, pan, vol) * (1-mute));
-	Out.ar(reverbFxBus, snd * reverbSendAmount * (1-mute));
-	Out.ar(delayFxBus, snd * delaySendAmount * (1-mute));
-
-}).add;
 
 
 
@@ -488,11 +522,6 @@ SynthDef(\openhat, {
 			\mute, ~openHatMute],
 		~drums);
 };
-
-// ================    Sequencing    ================ //
-
-
-
 
 
 // ================    OSC     ================ //
